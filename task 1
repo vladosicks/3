@@ -1,0 +1,149 @@
+#include <iostream>
+#include <queue>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <chrono>
+#include <iomanip>
+
+struct Process {
+    int id;
+    int arrivalTime;
+    int burstTime;
+    int remainingTime;
+    int priority;
+    int waitingTime;
+    int finishTime;
+    int startTime;
+};
+
+void generateProcesses(std::vector<Process>& processes, int numProcesses) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> arrivalDist(0, 10);
+    std::uniform_int_distribution<> burstDist(1, 10);
+    std::uniform_int_distribution<> priorityDist(1, 5);
+
+    for (int i = 0; i < numProcesses; ++i) {
+        Process proc = {i + 1, arrivalDist(gen), burstDist(gen), 0, priorityDist(gen), 0, 0, 0};
+        proc.remainingTime = proc.burstTime;
+        processes.push_back(proc);
+    }
+}
+
+void shortestJobFirst(std::vector<Process> processes) {
+    std::sort(processes.begin(), processes.end(), [](const Process& a, const Process& b) {
+        return a.arrivalTime < b.arrivalTime;
+    });
+
+    int currentTime = 0;
+    std::vector<Process> readyQueue;
+    size_t index = 0;
+
+    while (!readyQueue.empty() || index < processes.size()) {
+        while (index < processes.size() && processes[index].arrivalTime <= currentTime) {
+            readyQueue.push_back(processes[index]);
+            ++index;
+        }
+
+        if (!readyQueue.empty()) {
+            std::sort(readyQueue.begin(), readyQueue.end(), [](const Process& a, const Process& b) {
+                return a.burstTime < b.burstTime;
+            });
+
+            Process current = readyQueue.front();
+            readyQueue.erase(readyQueue.begin());
+
+            current.startTime = currentTime;
+            currentTime += current.burstTime;
+            current.finishTime = currentTime;
+            current.waitingTime = current.startTime - current.arrivalTime;
+
+            std::cout << "Process ID: " << current.id << ", Start Time: " << current.startTime
+                      << ", Finish Time: " << current.finishTime << ", Waiting Time: " << current.waitingTime << std::endl;
+        } else {
+            ++currentTime;
+        }
+    }
+}
+
+void prioritySchedulingWithAging(std::vector<Process> processes) {
+    std::sort(processes.begin(), processes.end(), [](const Process& a, const Process& b) {
+        return a.arrivalTime < b.arrivalTime;
+    });
+
+    int currentTime = 0;
+    std::vector<Process> readyQueue;
+    size_t index = 0;
+    const int agingFactor = 1; // Кількість одиниць пріоритету, що додаються кожні 5 одиниць часу очікування
+
+    while (!readyQueue.empty() || index < processes.size()) {
+        while (index < processes.size() && processes[index].arrivalTime <= currentTime) {
+            readyQueue.push_back(processes[index]);
+            ++index;
+        }
+
+        if (!readyQueue.empty()) {
+            for (auto& process : readyQueue) {
+                process.priority -= agingFactor; // Зменшуємо значення пріоритету (зростає реальний пріоритет)
+                process.priority = std::max(process.priority, 1); // Пріоритет не може бути нижче 1
+            }
+
+            std::sort(readyQueue.begin(), readyQueue.end(), [](const Process& a, const Process& b) {
+                return a.priority < b.priority;
+            });
+
+            Process current = readyQueue.front();
+            readyQueue.erase(readyQueue.begin());
+
+            current.startTime = std::max(currentTime, current.arrivalTime);
+            currentTime = current.startTime + current.burstTime;
+            current.finishTime = currentTime;
+            current.waitingTime = current.startTime - current.arrivalTime;
+
+            std::cout << "Process ID: " << current.id << ", Priority: " << current.priority
+                      << ", Start Time: " << current.startTime << ", Finish Time: " << current.finishTime
+                      << ", Waiting Time: " << current.waitingTime << std::endl;
+        } else {
+            ++currentTime;
+        }
+    }
+}
+
+void calculateAndDisplayMetrics(const std::vector<Process>& processes) {
+    int totalWaitingTime = 0;
+    int totalTurnaroundTime = 0;
+    for (const auto& process : processes) {
+        totalWaitingTime += process.waitingTime;
+        totalTurnaroundTime += (process.finishTime - process.arrivalTime);
+    }
+
+    std::cout << "\nAverage Waiting Time: " << std::fixed << std::setprecision(2)
+              << (double)totalWaitingTime / processes.size() << std::endl;
+    std::cout << "Average Turnaround Time: " << std::fixed << std::setprecision(2)
+              << (double)totalTurnaroundTime / processes.size() << std::endl;
+}
+
+int main() {
+    const int NUM_PROCESSES = 5;
+    std::vector<Process> processes;
+
+    generateProcesses(processes, NUM_PROCESSES);
+
+    std::cout << "Generated Processes:" << std::endl;
+    for (const auto& process : processes) {
+        std::cout << "ID: " << process.id << ", Arrival Time: " << process.arrivalTime
+                  << ", Burst Time: " << process.burstTime << ", Priority: " << process.priority << std::endl;
+    }
+
+    std::cout << "\nShortest Job First (SJF) Simulation:" << std::endl;
+    shortestJobFirst(processes);
+
+    std::cout << "\nPriority Scheduling with Aging Simulation:" << std::endl;
+    prioritySchedulingWithAging(processes);
+
+    std::cout << "\nMetrics Analysis for SJF and Priority Scheduling:" << std::endl;
+    calculateAndDisplayMetrics(processes);
+
+    return 0;
+}
